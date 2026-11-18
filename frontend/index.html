@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Personal portfolio of a software engineer and full-stack developer." />
+    <meta name="theme-color" content="#080a12" />
+    <title>Software Engineer | Full-Stack Developer</title>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const validTheme = (value) => value === "dark" || value === "light";
+        let preference = null;
+        let cache = null;
+        try {
+          preference = localStorage.getItem("portfolio-theme");
+          if (!validTheme(preference)) {
+            if (preference !== null) localStorage.removeItem("portfolio-theme");
+            preference = null;
+          }
+          const cachedValue = localStorage.getItem("portfolio-appearance-cache");
+          cache = cachedValue ? JSON.parse(cachedValue) : null;
+        } catch (error) {
+          console.warn("Unable to initialize the saved portfolio theme.", error);
+          preference = null;
+          cache = null;
+        }
+        const defaultTheme = validTheme(cache?.theme?.defaultTheme) ? cache.theme.defaultTheme : "dark";
+        const theme = preference || defaultTheme;
+        const palette = cache?.colors?.[theme];
+        root.dataset.portfolioTheme = theme;
+        if (palette && typeof palette === "object") {
+          for (const [key, property] of Object.entries({
+            background: "--portfolio-boot-background",
+            text: "--portfolio-boot-text",
+          })) {
+            if (typeof palette[key] === "string" && /^#[\da-f]{3,8}$/i.test(palette[key])) {
+              root.style.setProperty(property, palette[key]);
+            }
+          }
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
