@@ -1,7 +1,12 @@
 export const getAllowedClientOrigins = (environment = process.env) => {
   const developmentOrigins = environment.NODE_ENV === "production"
     ? []
-    : ["http://localhost:5173", "http://localhost:5174"];
+    : [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174"
+    ];
   const configuredOrigins = [environment.CLIENT_URLS, environment.CLIENT_URL]
     .filter((value) => typeof value === "string" && value.trim())
     .flatMap((value) => value.split(","))

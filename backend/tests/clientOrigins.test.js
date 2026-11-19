@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getAllowedClientOrigins } from "../utils/clientOrigins.js";
 
-test("development origin allowlist includes both Vite ports and configured origins", () => {
+test("development origin allowlist includes localhost and IPv4 loopback Vite origins", () => {
   assert.deepEqual(getAllowedClientOrigins({
     NODE_ENV: "development",
     CLIENT_URLS: " https://portfolio.example/,http://localhost:5200 ",
@@ -10,6 +10,8 @@ test("development origin allowlist includes both Vite ports and configured origi
   }), [
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
     "https://portfolio.example",
     "http://localhost:5200",
     "https://admin.example"

@@ -3,7 +3,7 @@ import ContentItem from "../models/ContentItem.js";
 import { normalizeWebUrl } from "../utils/validation.js";
 
 const fieldsByType = {
-  skills: ["name", "category", "icon", "proficiency"],
+  skills: ["name", "category", "icon", "proficiency", "categoryOrder", "scrollerOrder"],
   experience: [
     "jobTitle",
     "company",
@@ -46,6 +46,13 @@ const titleFieldByType = {
   testimonials: "name"
 };
 const publicIdFields = new Set(["imagePublicId", "profileImagePublicId"]);
+const skillKey = ({ name, category }) => `${String(category || "").trim().toLowerCase()}::${String(name || "").trim().toLowerCase()}`;
+const skillAlreadyExists = async (data, excludeId) => {
+  if (!data.name || !data.category) return false;
+  const records = await ContentItem.find({ type: "skills", ...(excludeId ? { _id: { $ne: excludeId } } : {}) }).select("data.name data.category").lean();
+  const key = skillKey(data);
+  return records.some((record) => skillKey(record.data || {}) === key);
+};
 
 const validateData = (type, input) => {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -64,6 +71,11 @@ const validateData = (type, input) => {
     if (field === "proficiency") {
       if (value === "" || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 100) {
         return { error: "Proficiency must be between 0 and 100." };
+      }
+      data[field] = Number(value);
+    } else if (["categoryOrder", "scrollerOrder"].includes(field)) {
+      if (!Number.isInteger(Number(value)) || Number(value) < 0 || Number(value) > 100000) {
+        return { error: `${field} must be a whole number between 0 and 100000.` };
       }
       data[field] = Number(value);
     } else if (typeof value === "string") {
@@ -171,6 +183,10 @@ export const createContent = async (req, res) => {
   }
 
   try {
+    if (type === "skills" && await skillAlreadyExists(validated.data)) {
+      res.status(409).json({ success: false, message: "A skill with this name already exists in that category." });
+      return;
+    }
     const item = await ContentItem.create({
       type,
       title: validated.data[titleFieldByType[type]],
@@ -224,6 +240,10 @@ export const updateContent = async (req, res) => {
   }
 
   try {
+    if (type === "skills" && Object.hasOwn(updates, "data") && await skillAlreadyExists(updates.data, req.params.id)) {
+      res.status(409).json({ success: false, message: "A skill with this name already exists in that category." });
+      return;
+    }
     const item = await ContentItem.findOneAndUpdate(
       { _id: req.params.id, type },
       { $set: updates },

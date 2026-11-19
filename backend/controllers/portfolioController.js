@@ -28,7 +28,7 @@ const allowedFields = {
     "primaryColor", "secondaryColor", "backgroundColor", "fontFamily",
     "sectionVisibility", "sectionOrder", "sectionContent", "sectionStyles",
     "navbar", "animations", "footerText", "seoTitle",
-    "seoDescription", "ogImage", "ogImagePublicId"
+    "seoDescription", "ogImage", "ogImagePublicId", "skills"
   ],
   appearance: ["theme", "colors", "typography", "design"],
   resume: ["url", "publicId", "fileName"]
@@ -104,6 +104,45 @@ const fontOptions = new Set([
   "system-ui"
 ]);
 const appearanceColorFields = new Set(Object.keys(appearanceSchema.colors));
+
+const validateSkillsSettings = (input) => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { error: "Skills settings must be an object." };
+  const result = {};
+  if (Object.hasOwn(input, "categories")) {
+    if (!Array.isArray(input.categories) || input.categories.length > 30) return { error: "Skills categories must be a list of up to 30 entries." };
+    const names = new Set();
+    const categories = [];
+    for (const category of input.categories) {
+      if (!category || typeof category.name !== "string" || !category.name.trim() || category.name.trim().length > 50 ||
+        typeof category.enabled !== "boolean" || !Number.isInteger(category.order) || category.order < 0 || category.order > 10000) {
+        return { error: "A skills category has invalid values." };
+      }
+      const name = category.name.trim();
+      if (names.has(name.toLowerCase())) return { error: "Skills category names must be unique." };
+      names.add(name.toLowerCase());
+      categories.push({ name, enabled: category.enabled, order: category.order });
+    }
+    result.categories = categories;
+  }
+  if (Object.hasOwn(input, "scroller")) {
+    const scroller = input.scroller;
+    if (!scroller || typeof scroller !== "object" || Array.isArray(scroller)) return { error: "Scroller settings must be an object." };
+    const allowed = ["visible", "pauseOnHover", "speed", "direction", "iconSize", "spacing"];
+    if (Object.keys(scroller).some((key) => !allowed.includes(key))) return { error: "Scroller settings include an unsupported field." };
+    const clean = {};
+    for (const [key, value] of Object.entries(scroller)) {
+      if (["visible", "pauseOnHover"].includes(key) && typeof value === "boolean") clean[key] = value;
+      else if (key === "direction" && ["left", "right"].includes(value)) clean[key] = value;
+      else if (key === "speed" && Number.isFinite(value) && value >= 10 && value <= 180) clean[key] = value;
+      else if (key === "iconSize" && Number.isInteger(value) && value >= 16 && value <= 64) clean[key] = value;
+      else if (key === "spacing" && Number.isInteger(value) && value >= 8 && value <= 80) clean[key] = value;
+      else return { error: `Scroller setting ${key} has an invalid value.` };
+    }
+    result.scroller = clean;
+  }
+  if (Object.keys(input).some((key) => !["categories", "scroller"].includes(key))) return { error: "Skills settings include an unsupported field." };
+  return { data: result };
+};
 
 export const validateAppearance = (input) => {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -275,6 +314,12 @@ export const validateSection = (section, input) => {
       data[field] = validated.data;
       continue;
     }
+    if (field === "skills") {
+      const validated = validateSkillsSettings(value);
+      if (validated.error) return validated;
+      data[field] = validated.data;
+      continue;
+    }
     if (field === "sectionContent") {
       if (!value || typeof value !== "object" || Array.isArray(value)) {
         return { error: "sectionContent must be an object." };
@@ -401,6 +446,26 @@ export function createProfileUpdateFields(profileData) {
   return updates;
 }
 
+export function createSettingsUpdateFields(settingsData) {
+  const updates = {};
+  for (const [key, value] of Object.entries(settingsData)) {
+    if (key !== "skills") {
+      updates[`data.settings.${key}`] = value;
+      continue;
+    }
+    for (const [skillsKey, skillsValue] of Object.entries(value)) {
+      if (skillsKey === "scroller") {
+        for (const [setting, settingValue] of Object.entries(skillsValue)) {
+          updates[`data.settings.skills.scroller.${setting}`] = settingValue;
+        }
+      } else {
+        updates[`data.settings.skills.${skillsKey}`] = skillsValue;
+      }
+    }
+  }
+  return updates;
+}
+
 export const updatePortfolioSection = async (req, res) => {
   if (req.params.section === "appearance") {
     const validatedAppearance = validateAppearance(req.body);
@@ -434,7 +499,9 @@ export const updatePortfolioSection = async (req, res) => {
   try {
     const update = req.params.section === "profile"
       ? createProfileUpdateFields(validated.data)
-      : { [`data.${req.params.section}`]: validated.data };
+      : req.params.section === "settings"
+        ? createSettingsUpdateFields(validated.data)
+        : { [`data.${req.params.section}`]: validated.data };
     const portfolio = await Portfolio.findOneAndUpdate(
       { key: "primary" },
       { $set: update },

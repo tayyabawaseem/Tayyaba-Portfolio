@@ -53,6 +53,9 @@ import HeroSection from "./components/HeroSection";
 import HeroManager from "./components/HeroManager";
 import { SiteAnimation, SiteAnimationProvider } from "./components/SiteAnimation";
 import loadWebFonts from "./utils/loadWebFonts";
+import { parseProjectDescription } from "./utils/projectDescription";
+import SkillsSection from "./components/SkillsSection";
+import SkillsManager from "./components/SkillsManager";
 
 const AuthContext = createContext(null);
 const ToastContext = createContext(() => {});
@@ -598,7 +601,7 @@ function PublicPortfolio() {
   const allSections = {
     hero: <HeroSection key="hero" profile={profile} portfolio={portfolio} socialItems={socialItems} animationsEnabled={design.animations} className={sectionClass("hero")} />,
     about: <AboutSection key="about" data={portfolio.about || {}} heading={getHeading("about")} className={sectionClass("about")} />,
-    skills: <SkillsSection key="skills" items={content.skills || []} heading={getHeading("skills")} className={sectionClass("skills")} />,
+    skills: <SkillsSection key="skills" items={content.skills || []} heading={getHeading("skills")} className={sectionClass("skills")} settings={settings.skills || {}} />,
     experience: <ExperienceSection key="experience" items={content.experience || []} heading={getHeading("experience")} className={sectionClass("experience")} />,
     projects: <ProjectsSection key="projects" items={projects} onSelect={setActiveProject} heading={getHeading("projects")} className={sectionClass("projects")} />,
     services: <ServicesSection key="services" items={content.services || []} heading={getHeading("services")} className={sectionClass("services")} />,
@@ -752,34 +755,6 @@ function AboutSection({ data, heading, className = "" }) {
   );
 }
 
-function SkillsSection({ items, heading, className = "" }) {
-  if (!items.length) return null;
-  const categories = [...new Set(items.map((item) => item.category).filter(Boolean))];
-  return (
-    <SiteAnimation as="section" animationTarget="skills" className={`content-section ${className}`} id="skills">
-      <SectionHeading {...heading} />
-      <div className="skill-groups">
-        {categories.length ? categories.map((category) => (
-          <div className="skill-group" key={category}>
-            <h3>{category}</h3>
-            <div className="skill-list">{items.filter((item) => item.category === category).map((item) => <SkillChip key={item._id} item={item} />)}</div>
-          </div>
-        )) : <div className="skill-list">{items.map((item) => <SkillChip key={item._id} item={item} />)}</div>}
-      </div>
-    </SiteAnimation>
-  );
-}
-
-function SkillChip({ item }) {
-  return (
-    <div className="skill-chip">
-      {item.icon?.startsWith("http") ? <img src={item.icon} alt="" /> : <span className="skill-symbol">{item.icon || item.name?.slice(0, 1)}</span>}
-      <span>{item.name}</span>
-      {Number.isFinite(Number(item.proficiency)) && item.proficiency !== "" && <small>{item.proficiency}%</small>}
-    </div>
-  );
-}
-
 function ExperienceSection({ items, heading, className = "" }) {
   if (!items.length) return null;
   return (
@@ -806,7 +781,7 @@ function ProjectsSection({ items, onSelect, heading, className = "" }) {
   return (
     <SiteAnimation as="section" animationTarget="projects" className={`content-section projects-section ${className}`} id="projects">
       <SectionHeading {...heading} />
-      <div className="project-grid">
+      <div className="projects-grid">
         {items.map((project, index) => (
           <SiteAnimation as="article" animationTarget="project-cards" delayIndex={index} className="project-card" key={project._id}>
             <SiteAnimation as="button" animationTarget="buttons-links" type="button" className="project-visual" onClick={() => onSelect(project)} aria-label={`View ${project.title}`}>
@@ -820,6 +795,10 @@ function ProjectsSection({ items, onSelect, heading, className = "" }) {
             </div>
             <SiteAnimation as="p" animationTarget="text" className="project-description">{project.shortDescription}</SiteAnimation>
             <div className="tag-row">{safeArray(project.techStack).map((technology) => <span key={technology}>{technology}</span>)}</div>
+            <div className="project-actions">
+              {project.liveUrl && <a className="project-action-primary" href={project.liveUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Live demo <ArrowUpRight size={14} /></a>}
+              {project.githubUrl && <a className="project-action-secondary" href={project.githubUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}><Code2 size={14} /> Source code</a>}
+            </div>
           </SiteAnimation>
         ))}
       </div>
@@ -830,14 +809,43 @@ function ProjectsSection({ items, onSelect, heading, className = "" }) {
 function ProjectModal({ project, onClose }) {
   const images = [project.thumbnail, ...safeArray(project.galleryAssets).map((asset) => asset.url), ...safeArray(project.gallery)]
     .filter((url, index, list) => url && list.indexOf(url) === index);
+  const descriptionSections = parseProjectDescription(project.description || project.shortDescription);
+  const technologySection = descriptionSections.find((section) => section.kind === "technologies");
+  const contentSections = descriptionSections.filter((section) => section.kind !== "technologies");
+  const technologies = safeArray(project.techStack);
+  const sectionTitle = (section) => ({
+    overview: "Project Overview",
+    features: "Key Features",
+    highlights: "Project Highlights",
+    technologies: "Technologies Used",
+  }[section.kind] || section.heading);
   return (
     <motion.div className="modal-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.article className="project-modal" onClick={(event) => event.stopPropagation()} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}>
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close project"><X size={20} /></button>
         <div className="modal-gallery">{images.map((url) => <img src={url} alt={project.title || ""} key={url} />)}</div>
         <p className="project-category">{project.category || ""}</p><h2>{project.title}</h2>
-        <p>{project.description || project.shortDescription}</p>
-        <div className="tag-row">{safeArray(project.techStack).map((technology) => <span key={technology}>{technology}</span>)}</div>
+        <div className="project-modal-content">
+          {contentSections.map((section, sectionIndex) => (
+            <section className="project-detail-section" key={`${section.kind}-${section.heading}-${sectionIndex}`}>
+              <h3>{sectionTitle(section)}</h3>
+              {section.blocks.map((block, blockIndex) => {
+                if (block.type === "subheading") return <h4 key={`${block.type}-${blockIndex}`}>{block.text}</h4>;
+                if (block.type === "list") return <ul key={`${block.type}-${blockIndex}`}>{block.items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{item}</li>)}</ul>;
+                return <p key={`${block.type}-${blockIndex}`}>{block.text}</p>;
+              })}
+            </section>
+          ))}
+          {(technologies.length > 0 || technologySection) && (
+            <section className="project-detail-section project-technologies">
+              <h3>Technologies Used</h3>
+              {technologySection?.blocks.map((block, index) => block.type === "list"
+                ? <ul key={`technology-list-${index}`}>{block.items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{item}</li>)}</ul>
+                : <p key={`technology-copy-${index}`}>{block.text}</p>)}
+              {technologies.length > 0 && <div className="project-modal-tech">{technologies.map((technology) => <span key={technology}>{technology}</span>)}</div>}
+            </section>
+          )}
+        </div>
         <div className="modal-actions">
           {project.liveUrl && <a className="button button-primary" href={project.liveUrl} target="_blank" rel="noreferrer">Live demo <ArrowUpRight size={16} /></a>}
           {project.githubUrl && <a className="button button-quiet" href={project.githubUrl} target="_blank" rel="noreferrer"><Code2 size={16} /> Source code</a>}
@@ -1136,6 +1144,7 @@ function ContentManager() {
   if (section === "appearance") return <AppearanceEditor />;
   if (section === "navigation") return <NavigationManager notify={notify} />;
   if (section === "animations") return <AnimationManager notify={notify} />;
+  if (section === "skills") return <SkillsManager />;
   if (managedTypes.has(section)) return <ContentListManager key={section} type={section} title={match[0]} />;
   if (section === "resume") return <PortfolioEditor section="resume" title={match[0]} />;
   if (section === "profile") return <HeroManager notify={notify} />;
