@@ -226,7 +226,8 @@ const portfolioFields = {
   contact: [
     field("email", "Email", "email"),
     field("phone", "Phone"),
-    field("whatsapp", "WhatsApp URL", "url"),
+    field("whatsappPhone", "WhatsApp phone number (international format)", "tel", { placeholder: "+country code and number" }),
+    field("whatsappEnabled", "Show WhatsApp contact option", "checkbox"),
     field("location", "Location"),
     field("formTitle", "Contact form title"),
     field("formDescription", "Contact form text", "textarea"),
@@ -907,15 +908,21 @@ function ContactSection({ data, heading, className = "" }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [formError, setFormError] = useState("");
+  const whatsappDigits = String(data.whatsappPhone || "").replace(/[^\d]/g, "").replace(/^0+/, "");
+  const whatsappUrl = data.whatsappEnabled !== false && /^\d{8,15}$/.test(whatsappDigits)
+    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent("Hello, I would like to discuss a project.")}` : "";
   const update = (event) => setForm((previous) => ({ ...previous, [event.target.name]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
+    setFormError("");
     try {
       const { data: response } = await api.post("contact", form);
       notify(response.message);
       setForm({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
+      setFormError(error.message || "Your message could not be sent. Please try again.");
       notify(error.message, "error");
     } finally {
       setBusy(false);
@@ -923,18 +930,24 @@ function ContactSection({ data, heading, className = "" }) {
   };
   return (
     <SiteAnimation as="section" animationTarget="contact" className={`content-section contact-section ${className}`} id="contact">
-      <SectionHeading {...heading} title={data.formTitle || heading.title} description={data.formDescription || heading.description} />
       <div className="contact-grid">
-        <div className="contact-details">
-          {data.email && <a href={`mailto:${data.email}`}><Mail size={17} />{data.email}</a>}
-          {data.phone && <a href={`tel:${data.phone}`}><MessageCircle size={17} />{data.phone}</a>}
-          {data.location && <p><Globe2 size={17} />{data.location}</p>}
-          {data.whatsapp && <a href={data.whatsapp} target="_blank" rel="noreferrer"><MessageCircle size={17} />WhatsApp</a>}
+        <div className="contact-copy">
+          <p className="contact-kicker"><span />09 / CONTACT</p>
+          <h2>Let’s Build Something <em>Together.</em></h2>
+          <p className="contact-intro">{data.formDescription || "Have an idea, a challenge, or a project in mind? I’d love to hear about it. Share a few details and let’s make it happen."}</p>
+          <div className="contact-details">
+          {data.email && <a className="contact-item" href={`mailto:${data.email}`}><span className="contact-item-icon"><Mail size={18} /></span><span className="contact-item-copy"><small>EMAIL</small><strong>{data.email}</strong></span><ArrowUpRight className="contact-item-arrow" size={16} /></a>}
+          {data.phone && <a className="contact-item" href={`tel:${data.phone}`}><span className="contact-item-icon"><MessageCircle size={18} /></span><span className="contact-item-copy"><small>PHONE</small><strong>{data.phone}</strong></span><ArrowUpRight className="contact-item-arrow" size={16} /></a>}
+          {data.location && <div className="contact-item"><span className="contact-item-icon"><Globe2 size={18} /></span><span className="contact-item-copy"><small>LOCATION</small><strong>{data.location}</strong></span></div>}
+          {whatsappUrl && <div className="contact-item"><span className="contact-item-icon"><MessageCircle size={18} /></span><span className="contact-item-copy"><small>WHATSAPP</small><strong>Let’s chat</strong></span><a className="whatsapp-action" href={whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp" title="Chat on WhatsApp"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16.02 3.2A12.7 12.7 0 0 0 5.1 22.37L3.4 28.6l6.38-1.67A12.7 12.7 0 1 0 16.02 3.2Zm0 23.1c-1.95 0-3.86-.52-5.54-1.5l-.4-.24-3.79.99 1.01-3.69-.26-.42a10.45 10.45 0 1 1 8.98 4.86Zm5.74-7.83c-.31-.16-1.84-.91-2.13-1.01-.29-.11-.5-.16-.71.16-.21.31-.81 1.01-.99 1.22-.18.21-.37.23-.68.08-.31-.16-1.31-.48-2.5-1.53-.93-.83-1.55-1.85-1.73-2.16-.18-.31-.02-.48.14-.64.14-.14.31-.37.47-.55.16-.18.21-.31.31-.52.11-.21.05-.39-.03-.55-.08-.16-.71-1.71-.97-2.34-.25-.61-.51-.53-.71-.54l-.6-.01c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.61s1.12 3.03 1.28 3.24c.16.21 2.2 3.36 5.33 4.71.74.32 1.32.51 1.77.65.74.23 1.41.2 1.94.12.59-.09 1.84-.75 2.1-1.48.26-.73.26-1.35.18-1.48-.08-.13-.29-.21-.6-.37Z" /></svg></a></div>}
+          </div>
         </div>
         <form className="contact-form" onSubmit={submit}>
-          <div className="form-two"><label>Name<input name="name" value={form.name} onChange={update} required minLength={2} maxLength={100} /></label><label>Email<input name="email" type="email" value={form.email} onChange={update} required maxLength={254} /></label></div>
-          <label>Subject<input name="subject" value={form.subject} onChange={update} required maxLength={160} /></label>
-          <label>Message<textarea name="message" value={form.message} onChange={update} required minLength={10} maxLength={5000} rows="5" /></label>
+          <div className="contact-form-heading"><div><p>START A CONVERSATION</p><h3>{data.formTitle || "Tell me about your project"}</h3></div><span><Send size={17} /></span></div>
+          <div className="form-two"><label>Name<input name="name" value={form.name} onChange={update} required minLength={2} maxLength={100} placeholder="Your name" /></label><label>Email<input name="email" type="email" value={form.email} onChange={update} required maxLength={254} placeholder="you@example.com" /></label></div>
+          <label>Subject<input name="subject" value={form.subject} onChange={update} required maxLength={160} placeholder="What would you like to discuss?" /></label>
+          <label>Message<textarea name="message" value={form.message} onChange={update} required minLength={10} maxLength={5000} rows="5" placeholder="A little about your project, goals, and timeline…" /></label>
+          {formError && <p className="contact-form-error" role="alert">{formError}</p>}
           <SiteAnimation as="button" animationTarget="buttons-links" className="button button-primary" type="submit" disabled={busy}>{busy ? "Sending…" : "Send message"}{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}</SiteAnimation>
         </form>
       </div>
@@ -1727,7 +1740,7 @@ function ContactInbox() {
 function FormField({ definition, value, onChange, onUpload, uploadProgress }) {
   const { name, label, type, required, placeholder, options = [], ...attributes } = definition;
   const objectTypes = ["sectionVisibility", "sectionContent", "sectionStyles", "navbar"];
-  const current = value ?? (type === "checkbox" ? false : type === "list" || type === "sectionOrder" ? [] : objectTypes.includes(type) ? {} : "");
+  const current = value ?? (type === "checkbox" ? name === "whatsappEnabled" : type === "list" || type === "sectionOrder" ? [] : objectTypes.includes(type) ? {} : "");
   const wrapperClass = type === "textarea" || type === "list" || type === "json" || type === "image" || type === "resume" || type.startsWith("section") ? "field-wide" : "";
   if (type === "checkbox") return <label className="checkbox-field"><input type="checkbox" checked={Boolean(current)} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
   if (type === "list") return <label className={wrapperClass}>{label}<textarea rows="3" placeholder="One item per line" value={safeArray(current).join("\n")} onChange={(event) => onChange(event.target.value.split("\n"))} /></label>;

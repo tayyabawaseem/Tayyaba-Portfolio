@@ -275,6 +275,7 @@ export const uploadResume = async (req, res) => {
   }
   try {
     const resume = await uploadResumeToCloudinary(req.file);
+    resume.url = `${req.protocol}://${req.get("host")}/api/portfolio/resume`;
     res.json({ success: true, resume });
   } catch (error) {
     console.error("Resume Upload Error:", error.message);

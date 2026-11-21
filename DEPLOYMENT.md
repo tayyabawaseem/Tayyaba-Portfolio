@@ -61,7 +61,7 @@ Set `ADMIN_NAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in the backend service env
 
 ## Operational notes
 
-- The contact form stores submissions in MongoDB; it does not send email. Set the private contact recipient in the CMS for reference, and review messages under **Admin → Contact Messages**.
+- The contact form stores submissions in MongoDB and sends an admin notification through Gmail SMTP. The recipient comes from Admin > Contact Information > Notification recipient email, falling back to CONTACT_NOTIFICATION_EMAIL if it is blank. Configure SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_FROM, CONTACT_NOTIFICATION_EMAIL, and a Gmail App Password in the backend environment. Keep SMTP_PASS out of source control. Messages remain in Admin > Contact Messages if email delivery is unavailable.
 - Appearance and section settings are persisted in the MongoDB portfolio record. Use **Admin → Appearance** for the live theme preview, and **Admin → Website Settings** for section visibility/order, heading copy, per-section backgrounds, and navigation options.
 - Navigation items and appearance are saved to the same portfolio record under `data.settings.navbar`; manage them in **Admin → Navigation**. Enabled links are served from `GET /api/navigation`, while all create/update/delete/reset endpoints require admin authentication.
 - Website animation presets are saved under `data.settings.animations`; manage supported targets, effects, timing, and triggers in **Admin → Website Animations**. `GET /api/animations` returns enabled configurations only. Framer Motion applies supported settings on the public site and disables motion for visitors with reduced-motion enabled.
@@ -132,7 +132,7 @@ Set `ADMIN_NAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in the backend service env
 
 ## Operational notes
 
-- The contact form stores submissions in MongoDB; it does not send email. Set the private contact recipient in the CMS for reference, and review messages under **Admin → Contact Messages**.
+- The contact form stores submissions in MongoDB and sends an admin notification through Gmail SMTP. The recipient comes from Admin > Contact Information > Notification recipient email, falling back to CONTACT_NOTIFICATION_EMAIL if it is blank. Configure SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_FROM, and a Gmail App Password in the backend environment. Keep SMTP_PASS out of source control. Messages remain in Admin > Contact Messages if email delivery is unavailable.
 - Appearance and section settings are persisted in the MongoDB portfolio record. Use **Admin → Appearance** for the live theme preview, and **Admin → Website Settings** for section visibility/order, heading copy, per-section backgrounds, and navigation options.
 - Navigation items and appearance are saved to the same portfolio record under `data.settings.navbar`; manage them in **Admin → Navigation**. Enabled links are served from `GET /api/navigation`, while all create/update/delete/reset endpoints require admin authentication.
 - Website animation presets are saved under `data.settings.animations`; manage supported targets, effects, timing, and triggers in **Admin → Website Animations**. `GET /api/animations` returns enabled configurations only. Framer Motion applies supported settings on the public site and disables motion for visitors with reduced-motion enabled.

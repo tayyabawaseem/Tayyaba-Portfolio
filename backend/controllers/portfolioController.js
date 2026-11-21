@@ -1,4 +1,7 @@
 import Portfolio from "../models/Portfolio.js";
+import cloudinary from "../config/cloudinary.js";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import {
   isSafeActionUrl,
   isValidEmail,
@@ -19,7 +22,7 @@ const allowedFields = {
     "resumeLink"
   ],
   contact: [
-    "email", "phone", "whatsapp", "location", "formTitle", "formDescription",
+    "email", "phone", "whatsapp", "whatsappPhone", "whatsappEnabled", "location", "formTitle", "formDescription",
     "formRecipient"
   ],
   socials: ["linkedin", "github", "instagram", "facebook", "other"],
@@ -258,6 +261,14 @@ export const validateSection = (section, input) => {
       if (field === "email" && trimmed && !isValidEmail(trimmed)) {
         return { error: "Contact email must be valid." };
       }
+      if (field === "whatsappPhone") {
+        const digits = trimmed.replace(/[^\d]/g, "");
+        if (trimmed && (!/^\+?[\d\s().-]+$/.test(trimmed) || !/^\d{8,15}$/.test(digits) || digits.startsWith("0"))) {
+          return { error: "WhatsApp number must use international format with 8–15 digits and no leading zero." };
+        }
+        data[field] = digits ? `+${digits}` : "";
+        continue;
+      }
       if (colorFields.has(field) && trimmed && !/^#[\da-f]{3,8}$/i.test(trimmed)) {
         return { error: `${field} must be a hexadecimal color.` };
       }
@@ -279,6 +290,10 @@ export const validateSection = (section, input) => {
       continue;
     }
     if (field === "availabilityStatus" && typeof value === "boolean") {
+      data[field] = value;
+      continue;
+    }
+    if (field === "whatsappEnabled" && typeof value === "boolean") {
       data[field] = value;
       continue;
     }
@@ -385,9 +400,55 @@ const readPortfolio = async () => {
   return portfolio?.data || {};
 };
 
+const resumeDeliveryUrl = (req) => `${req.protocol}://${req.get("host")}/api/portfolio/resume`;
+
+export const getPublicResume = async (req, res) => {
+  try {
+    const portfolio = await readPortfolio();
+    const publicId = portfolio.resume?.publicId;
+    if (!publicId || !publicId.startsWith("tayyaba-portfolio/resumes/")) {
+      res.status(404).json({ success: false, message: "No uploaded resume is available." });
+      return;
+    }
+
+    const sourceUrl = cloudinary.url(publicId, { resource_type: "raw", secure: true });
+    const upstream = await fetch(sourceUrl, {
+      headers: req.get("range") ? { Range: req.get("range") } : undefined,
+      signal: AbortSignal.timeout(30000)
+    });
+    if (upstream.status !== 200 && upstream.status !== 206 && upstream.status !== 416) {
+      res.status(502).json({ success: false, message: "Unable to retrieve the resume PDF." });
+      return;
+    }
+
+    res.status(upstream.status);
+    res.set("Content-Type", "application/pdf");
+    res.set("Content-Disposition", 'inline; filename="resume.pdf"');
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("Cache-Control", "public, max-age=300");
+    for (const header of ["accept-ranges", "content-range", "content-length"]) {
+      const value = upstream.headers.get(header);
+      if (value) res.set(header, value);
+    }
+    if (!upstream.body || upstream.status === 416) {
+      res.end();
+      return;
+    }
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch (error) {
+    if (res.headersSent) {
+      res.destroy(error);
+      return;
+    }
+    console.error("Resume Delivery Error:", error.message);
+    res.status(502).json({ success: false, message: "Unable to retrieve the resume PDF." });
+  }
+};
+
 export const getPublicPortfolio = async (req, res) => {
   try {
     const data = await readPortfolio();
+    if (data.resume?.publicId) data.resume = { ...data.resume, url: resumeDeliveryUrl(req) };
     const contact = { ...(data.contact || {}) };
     const settings = { ...(data.settings || {}) };
     if (settings.navbar) {
@@ -421,7 +482,9 @@ export const getPublicProfile = async (req, res) => {
 
 export const getAdminPortfolio = async (req, res) => {
   try {
-    res.json({ success: true, portfolio: await readPortfolio() });
+    const portfolio = await readPortfolio();
+    if (portfolio.resume?.publicId) portfolio.resume = { ...portfolio.resume, url: resumeDeliveryUrl(req) };
+    res.json({ success: true, portfolio });
   } catch (error) {
     console.error("Admin Portfolio Error:", error.message);
     res.status(500).json({ success: false, message: "Failed to fetch portfolio settings." });

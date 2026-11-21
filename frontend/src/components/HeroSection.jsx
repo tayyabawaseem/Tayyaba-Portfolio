@@ -667,7 +667,7 @@ export default function HeroSection({
         resumeUrl,
         "button button-primary",
         <>{content.viewResumeLabel || "View Resume"} <ArrowUpRight size={16} /></>,
-        { target: "_blank", rel: "noreferrer" }
+        { target: "_blank", rel: "noopener noreferrer" }
       );
     }
     if (key === "download-resume" && resumeUrl && showResumeDownload) {

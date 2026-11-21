@@ -1,5 +1,6 @@
 import ContactMessage from "../models/ContactMessage.js";
 import mongoose from "mongoose";
+import { sendContactNotification } from "../utils/contactMailer.js";
 
 export const submitContactMessage = async (req, res) => {
   const { name, email, subject, message } = req.body || {};
@@ -15,12 +16,20 @@ export const submitContactMessage = async (req, res) => {
   }
 
   try {
-    await ContactMessage.create({
+    const contactMessage = await ContactMessage.create({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       subject: subject.trim(),
       message: message.trim()
     });
+    try {
+      await sendContactNotification(contactMessage);
+    } catch (emailError) {
+      console.error("Contact notification email failed; the message remains saved in the inbox.", {
+        code: emailError.code || "UNKNOWN",
+        responseCode: emailError.responseCode || null
+      });
+    }
     res.status(201).json({ success: true, message: "Your message has been received." });
   } catch (error) {
     console.error("Contact Submission Error:", error.message);
