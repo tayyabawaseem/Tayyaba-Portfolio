@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   ChevronDown as MoveDown,
   ChevronUp as MoveUp,
   Code2,
+  Copy,
   Download,
   ExternalLink,
   GraduationCap,
@@ -24,6 +25,7 @@ import {
   MessageCircle,
   Moon,
   Pencil,
+  Phone,
   Plus,
   Send,
   Settings,
@@ -590,10 +592,19 @@ function PublicPortfolio() {
     testimonials: safeArray(content.testimonials).length > 0,
     contact: true,
   };
+  const configuredOrder = [...new Set(safeArray(settings.sectionOrder).filter((name) => sectionOptions.some(([id]) => id === name)))];
+  const sectionOrder = [
+    ...configuredOrder,
+    ...defaultSectionOrder.filter((name) => !configuredOrder.includes(name)),
+  ];
+  const renderedSectionOrder = sectionOrder.filter((name) =>
+    settings.sectionVisibility?.[name] !== false && sectionHasContent[name]
+  );
+  const sectionNumbers = new Map(renderedSectionOrder.map((name, index) => [name, String(index + 1).padStart(2, "0")]));
   const getHeading = (key) => {
     const [index, title, description] = sectionHeadings[key];
     return {
-      index,
+      index: sectionNumbers.get(key) || index,
       title: sectionContent[key]?.title ?? title,
       description: sectionContent[key]?.description ?? description,
     };
@@ -611,14 +622,7 @@ function PublicPortfolio() {
     testimonials: <TestimonialsSection key="testimonials" items={content.testimonials || []} heading={getHeading("testimonials")} className={sectionClass("testimonials")} />,
     contact: <ContactSection key="contact" data={portfolio.contact || {}} heading={getHeading("contact")} className={sectionClass("contact")} />,
   };
-  const configuredOrder = [...new Set(safeArray(settings.sectionOrder).filter((name) => allSections[name]))];
-  const sectionOrder = [
-    ...configuredOrder,
-    ...defaultSectionOrder.filter((name) => !configuredOrder.includes(name)),
-  ];
-  const visibleSections = sectionOrder
-    .filter((name) => allSections[name] && settings.sectionVisibility?.[name] !== false)
-    .map((name) => allSections[name]);
+  const visibleSections = renderedSectionOrder.map((name) => allSections[name]).filter(Boolean);
   const navAppearance = navigationConfig?.appearance || {};
   const navColors = navAppearance.colors?.[activeTheme] || {};
   const navigationEnabled = (items) => safeArray(items).flatMap((item) => {
@@ -675,6 +679,7 @@ function PublicPortfolio() {
 
   return (
     <SiteAnimationProvider animations={animations} enabled={design.animations}>
+    <>
     <main className="site-shell" data-theme={activeTheme} data-grid={design.gridBackground} data-decoration={design.decorativeElements} data-animations={design.animations} data-gradient={design.backgroundGradient} data-card-style={design.cardStyle} data-button-style={design.buttonStyle} data-section-background={design.sectionBackground} data-radius={design.borderRadius} style={{
       paddingTop: navAppearance.position === "fixed" ? `${navAppearance.navbarHeight || 76}px` : undefined,
       "--accent": colors.primary,
@@ -726,15 +731,25 @@ function PublicPortfolio() {
         {activeProject && <ProjectModal project={activeProject} onClose={() => setActiveProject(null)} />}
       </AnimatePresence>
     </main>
+    <a className="floating-whatsapp" href="https://wa.me/923322218297" target="_blank" rel="noopener noreferrer" aria-label="Chat with us on WhatsApp" title="Chat with us on WhatsApp">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.52 3.48A11.8 11.8 0 0 0 3.2 19.35L2 22l2.73-.72a11.8 11.8 0 0 0 5.64 1.43h.01A11.8 11.8 0 0 0 20.52 3.48Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.7" />
+        <path d="M17.47 14.38c-.3-.15-1.77-.87-2.04-.97-.28-.1-.48-.15-.68.15-.2.3-.78.97-.95 1.17-.18.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.49-.9-.8-1.5-1.79-1.67-2.09-.18-.3-.02-.46.13-.61.14-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.53-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.68-.51h-.58c-.2 0-.53.07-.8.37-.28.3-1.05 1.02-1.05 2.48s1.07 2.87 1.22 3.07c.15.2 2.1 3.21 5.1 4.5.71.3 1.26.48 1.7.61.71.23 1.36.2 1.87.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.13-.27-.2-.57-.35Z" fill="currentColor" />
+      </svg>
+    </a>
+    </>
     </SiteAnimationProvider>
   );
 }
 
 function SectionHeading({ index, title, description }) {
+  const sectionIndex = typeof index === "object" ? index.value : index;
+  const indexSuffix = typeof index === "object" ? index.suffix : "";
+  const labelOnly = typeof index === "object" && index.labelOnly;
   return (
     <div className="section-heading">
-      <span className="section-index">{index} /</span>
-      <div><SiteAnimation as="h2" animationTarget="headings">{title}</SiteAnimation>{description && <SiteAnimation as="p" animationTarget="text">{description}</SiteAnimation>}</div>
+      <span className="section-index">{sectionIndex} /{indexSuffix && ` ${indexSuffix}`}</span>
+      {!labelOnly && <div><SiteAnimation as="h2" animationTarget="headings">{title}</SiteAnimation>{description && <SiteAnimation as="p" animationTarget="text">{description}</SiteAnimation>}</div>}
     </div>
   );
 }
@@ -907,11 +922,36 @@ function TestimonialsSection({ items, heading, className = "" }) {
 function ContactSection({ data, heading, className = "" }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  const [phoneCopied, setPhoneCopied] = useState(false);
+  const copyFeedbackTimer = useRef(null);
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [formError, setFormError] = useState("");
-  const whatsappDigits = String(data.whatsappPhone || "").replace(/[^\d]/g, "").replace(/^0+/, "");
-  const whatsappUrl = data.whatsappEnabled !== false && /^\d{8,15}$/.test(whatsappDigits)
-    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent("Hello, I would like to discuss a project.")}` : "";
+  const email = String(data.email || "").trim() || "taiyabawaseem119@gmail.com";
+  const phone = String(data.phone || "").trim() || "03322218297";
+  const emailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`;
+  useEffect(() => () => window.clearTimeout(copyFeedbackTimer.current), []);
+  const copyPhoneNumber = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phone);
+      } else {
+        const temporaryInput = document.createElement("textarea");
+        temporaryInput.value = phone;
+        temporaryInput.style.position = "fixed";
+        temporaryInput.style.opacity = "0";
+        document.body.appendChild(temporaryInput);
+        temporaryInput.select();
+        const copied = document.execCommand("copy");
+        temporaryInput.remove();
+        if (!copied) throw new Error("Clipboard access is unavailable.");
+      }
+      setPhoneCopied(true);
+      window.clearTimeout(copyFeedbackTimer.current);
+      copyFeedbackTimer.current = window.setTimeout(() => setPhoneCopied(false), 2000);
+    } catch {
+      notify("Could not copy the phone number.", "error");
+    }
+  };
   const update = (event) => setForm((previous) => ({ ...previous, [event.target.name]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault();
@@ -930,16 +970,15 @@ function ContactSection({ data, heading, className = "" }) {
   };
   return (
     <SiteAnimation as="section" animationTarget="contact" className={`content-section contact-section ${className}`} id="contact">
+      <SectionHeading index={heading.index} title="Contact Us" />
       <div className="contact-grid">
         <div className="contact-copy">
-          <p className="contact-kicker"><span />09 / CONTACT</p>
           <h2>Let’s Build Something <em>Together.</em></h2>
           <p className="contact-intro">{data.formDescription || "Have an idea, a challenge, or a project in mind? I’d love to hear about it. Share a few details and let’s make it happen."}</p>
           <div className="contact-details">
-          {data.email && <a className="contact-item" href={`mailto:${data.email}`}><span className="contact-item-icon"><Mail size={18} /></span><span className="contact-item-copy"><small>EMAIL</small><strong>{data.email}</strong></span><ArrowUpRight className="contact-item-arrow" size={16} /></a>}
-          {data.phone && <a className="contact-item" href={`tel:${data.phone}`}><span className="contact-item-icon"><MessageCircle size={18} /></span><span className="contact-item-copy"><small>PHONE</small><strong>{data.phone}</strong></span><ArrowUpRight className="contact-item-arrow" size={16} /></a>}
-          {data.location && <div className="contact-item"><span className="contact-item-icon"><Globe2 size={18} /></span><span className="contact-item-copy"><small>LOCATION</small><strong>{data.location}</strong></span></div>}
-          {whatsappUrl && <div className="contact-item"><span className="contact-item-icon"><MessageCircle size={18} /></span><span className="contact-item-copy"><small>WHATSAPP</small><strong>Let’s chat</strong></span><a className="whatsapp-action" href={whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp" title="Chat on WhatsApp"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16.02 3.2A12.7 12.7 0 0 0 5.1 22.37L3.4 28.6l6.38-1.67A12.7 12.7 0 1 0 16.02 3.2Zm0 23.1c-1.95 0-3.86-.52-5.54-1.5l-.4-.24-3.79.99 1.01-3.69-.26-.42a10.45 10.45 0 1 1 8.98 4.86Zm5.74-7.83c-.31-.16-1.84-.91-2.13-1.01-.29-.11-.5-.16-.71.16-.21.31-.81 1.01-.99 1.22-.18.21-.37.23-.68.08-.31-.16-1.31-.48-2.5-1.53-.93-.83-1.55-1.85-1.73-2.16-.18-.31-.02-.48.14-.64.14-.14.31-.37.47-.55.16-.18.21-.31.31-.52.11-.21.05-.39-.03-.55-.08-.16-.71-1.71-.97-2.34-.25-.61-.51-.53-.71-.54l-.6-.01c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.61s1.12 3.03 1.28 3.24c.16.21 2.2 3.36 5.33 4.71.74.32 1.32.51 1.77.65.74.23 1.41.2 1.94.12.59-.09 1.84-.75 2.1-1.48.26-.73.26-1.35.18-1.48-.08-.13-.29-.21-.6-.37Z" /></svg></a></div>}
+            <a className="contact-item" href={emailComposeUrl} target="_blank" rel="noopener noreferrer"><span className="contact-item-icon"><Mail size={18} /></span><span className="contact-item-copy"><small>EMAIL</small><strong>{email}</strong></span><ArrowUpRight className="contact-item-arrow" size={16} /></a>
+            <div className="contact-item contact-phone-item"><span className="contact-item-icon"><Phone size={18} /></span><span className="contact-item-copy"><small>PHONE</small><strong>{phone}</strong></span><span className="contact-item-actions"><button className="contact-action-link" type="button" onClick={copyPhoneNumber} aria-label={phoneCopied ? "Phone number copied" : "Copy phone number"} title={phoneCopied ? "Copied" : "Copy phone number"}>{phoneCopied ? <Check size={16} /> : <Copy size={15} />}</button></span></div>
+            {data.location && <div className="contact-item"><span className="contact-item-icon"><Globe2 size={18} /></span><span className="contact-item-copy"><small>LOCATION</small><strong>{data.location}</strong></span></div>}
           </div>
         </div>
         <form className="contact-form" onSubmit={submit}>
